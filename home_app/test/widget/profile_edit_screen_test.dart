@@ -119,7 +119,7 @@ void main() {
       // Verificamos si este switch tiene cerca el texto "Habilitar lectura sensores"
       final finder = find.ancestor(
         of: find.byWidget(widget),
-        matching: find.byWidgetPredicate((w) => w is Row && w.children.any((c) => c is Text && (c as Text).data == 'Habilitar lectura sensores'))
+        matching: find.byWidgetPredicate((w) => w is Row && w.children.any((c) => c is Text && (c).data == 'Habilitar lectura sensores'))
       );
       return finder.evaluate().isNotEmpty;
     });
