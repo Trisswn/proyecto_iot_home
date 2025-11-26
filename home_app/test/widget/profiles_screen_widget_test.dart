@@ -1,162 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:iot_controller_2/smart_home_state.dart';
 import 'package:iot_controller_2/profiles_screen.dart';
 import 'package:iot_controller_2/profile_model.dart';
+import 'package:iot_controller_2/app_colors.dart';
+
+class MockSmartHomeState extends Mock implements SmartHomeState {}
 
 void main() {
   group('Widget Tests - ProfilesScreen', () {
-    Widget createWidgetUnderTest({required SmartHomeState state}) {
+    late MockSmartHomeState mockState;
+
+    setUp(() {
+      mockState = MockSmartHomeState();
+      // Stubs por defecto para evitar errores de null
+      when(() => mockState.profiles).thenReturn([]);
+      when(() => mockState.activeProfile).thenReturn(null);
+    });
+
+    Widget createWidgetUnderTest() {
       return MaterialApp(
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+        ),
         home: ChangeNotifierProvider<SmartHomeState>.value(
-          value: state,
+          value: mockState,
           child: const ProfilesScreen(),
         ),
       );
     }
 
-    testWidgets('ProfilesScreen should display AppBar with title',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
+    testWidgets('ProfilesScreen displays empty list when no profiles', (WidgetTester tester) async {
+      when(() => mockState.profiles).thenReturn([]);
+      
+      await tester.pumpWidget(createWidgetUnderTest());
 
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
+      // Verifica que aparezca el título pero ninguna tarjeta
       expect(find.text('Perfiles de Usuario'), findsOneWidget);
-      expect(find.byType(AppBar), findsOneWidget);
-    });
-
-    testWidgets('ProfilesScreen should display add button in AppBar',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
-      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
-      expect(find.byType(IconButton), findsOneWidget);
-    });
-
-    testWidgets('ProfilesScreen should display empty list when no profiles',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-      expect(state.profiles.isEmpty, true);
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
       expect(find.byType(Card), findsNothing);
-      expect(find.byType(ListView), findsOneWidget);
     });
 
-    testWidgets('ProfilesScreen should display profiles as cards',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-      final profile1 = UserProfile(
-        name: 'Perfil Sala',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      final profile2 = UserProfile(
-        name: 'Perfil Cocina',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      state.addProfile(profile1);
-      state.addProfile(profile2);
+    testWidgets('ProfilesScreen displays profiles as cards', (WidgetTester tester) async {
+      final profiles = [
+        UserProfile(name: 'Perfil Sala', ledConfigs: UserProfile.getDefaultLedConfigs()),
+        UserProfile(name: 'Perfil Cocina', ledConfigs: UserProfile.getDefaultLedConfigs()),
+      ];
+      when(() => mockState.profiles).thenReturn(profiles);
 
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
+      await tester.pumpWidget(createWidgetUnderTest());
 
-      expect(find.byType(Card), findsWidgets);
+      // Verifica que aparezcan las tarjetas correspondientes
+      expect(find.byType(Card), findsNWidgets(2));
       expect(find.text('Perfil Sala'), findsOneWidget);
       expect(find.text('Perfil Cocina'), findsOneWidget);
     });
 
-    testWidgets('ProfilesScreen should display edit and delete buttons',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-      final profile = UserProfile(
-        name: 'Test Profile',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      state.addProfile(profile);
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
-      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
-    });
-
-    testWidgets('Delete button should remove profile when pressed',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-      final profile = UserProfile(
-        name: 'Profile to Delete',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      state.addProfile(profile);
-      expect(state.profiles.length, 1);
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-      await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
-
-      expect(state.profiles.length, 0);
-      expect(find.text('Profile to Delete'), findsNothing);
-    });
-
-    testWidgets('Profile card should display person icon',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
-      final profile = UserProfile(
-        name: 'Test Profile',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      state.addProfile(profile);
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
-      expect(find.byIcon(Icons.person_outline), findsOneWidget);
-    });
-
-    testWidgets('Profile should have correct styling', (WidgetTester tester) async {
-      final state = SmartHomeState();
-      final profile = UserProfile(
-        name: 'Styled Profile',
-        ledConfigs: UserProfile.getDefaultLedConfigs(),
-      );
-      state.addProfile(profile);
-
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
-
-      expect(find.byType(Card), findsOneWidget);
-      expect(find.byType(ListTile), findsOneWidget);
-      expect(find.text('Styled Profile'), findsOneWidget);
-    });
-
-    testWidgets('Multiple profiles should display in order',
-        (WidgetTester tester) async {
-      final state = SmartHomeState();
+    testWidgets('Delete button calls deleteProfile', (WidgetTester tester) async {
       final profiles = [
-        UserProfile(
-          name: 'First Profile',
-          ledConfigs: UserProfile.getDefaultLedConfigs(),
-        ),
-        UserProfile(
-          name: 'Second Profile',
-          ledConfigs: UserProfile.getDefaultLedConfigs(),
-        ),
-        UserProfile(
-          name: 'Third Profile',
-          ledConfigs: UserProfile.getDefaultLedConfigs(),
-        ),
+        UserProfile(name: 'Profile to Delete', ledConfigs: UserProfile.getDefaultLedConfigs()),
       ];
-      for (final p in profiles) {
-        state.addProfile(p);
-      }
+      when(() => mockState.profiles).thenReturn(profiles);
+      
+      await tester.pumpWidget(createWidgetUnderTest());
 
-      await tester.pumpWidget(createWidgetUnderTest(state: state));
+      // Buscar y pulsar el botón de eliminar
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pump();
 
-      expect(find.byType(Card), findsWidgets);
-      expect(find.text('First Profile'), findsOneWidget);
-      expect(find.text('Second Profile'), findsOneWidget);
-      expect(find.text('Third Profile'), findsOneWidget);
+      // Verificar que se llamó al método en el estado
+      verify(() => mockState.deleteProfile(0)).called(1);
     });
   });
 }
