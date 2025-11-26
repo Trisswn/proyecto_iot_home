@@ -30,7 +30,6 @@ void main() {
   }
 
   testWidgets('Shows "Desconectado" state correctly', (WidgetTester tester) async {
-    // Solución "Found 0 widgets": Aumentar tamaño de pantalla física para ver todo el contenido
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
 
@@ -46,19 +45,13 @@ void main() {
     // Assert
     expect(find.text('Desconectado'), findsWidgets);
     expect(find.text('Buscar y Conectar'), findsOneWidget);
-    
-    // Mensaje de placeholder de sensores
     expect(find.text('Conecta el dispositivo para ver los sensores.'), findsOneWidget);
-    
-    // Solución error "icon is not defined": Usar find.byIcon
     expect(find.byIcon(Icons.lightbulb_outline), findsWidgets);
 
-    // Limpieza
     addTearDown(tester.view.resetPhysicalSize);
   });
 
   testWidgets('Shows "Connected" state with sensor data', (WidgetTester tester) async {
-    // Aumentar tamaño de pantalla
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 1.0;
 
@@ -77,14 +70,77 @@ void main() {
     // Assert
     expect(find.text('Conectado'), findsOneWidget);
     expect(find.text('Desconectar'), findsOneWidget);
-    
-    // Verificar datos de sensores
     expect(find.text('24.5'), findsOneWidget);
     expect(find.text('60.0'), findsOneWidget);
     
-    // Verificar servo
-    expect(find.text('Puerta Automática'), findsOneWidget);
+    addTearDown(tester.view.resetPhysicalSize);
+  });
 
+  testWidgets('Displays Servo Control and handles tap UI logic', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+
+    // Arrange: Conectado
+    when(() => mockState.isConnected).thenReturn(true);
+    when(() => mockState.statusMessage).thenReturn('Listo');
+    when(() => mockState.activeProfile).thenReturn(null); 
+    // Simular temperatura/humedad para evitar errores de renderizado
+    when(() => mockState.temperature).thenReturn(20.0);
+    when(() => mockState.humidity).thenReturn(50.0);
+
+    await tester.pumpWidget(createWidgetUnderTest());
+
+    // Assert: Botón de Puerta visible
+    expect(find.text('Puerta Automática'), findsOneWidget);
+    expect(find.text('Abrir/Cerrar'), findsOneWidget);
+
+    // Act: Tocar botón
+    // Esto intentará llamar a _writeToServoCharacteristic. 
+    // Como no estamos mockeando FlutterBluePlus a nivel de canal, esto podría generar 
+    // una excepción controlada o un log, pero lo importante es que el código UI se ejecuta.
+    await tester.tap(find.text('Abrir/Cerrar'));
+    await tester.pump();
+    
+    // No esperamos un resultado específico (como un dialogo) porque requeriría mockear FBP,
+    // pero aseguramos que el widget es interactivo y no crashea la prueba.
+    
+    addTearDown(tester.view.resetPhysicalSize);
+  });
+
+  testWidgets('Handles LED tap when disabled by profile', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    
+    // Arrange: Conectado pero LED 'Sala' deshabilitado en perfil
+    when(() => mockState.isConnected).thenReturn(true);
+    when(() => mockState.statusMessage).thenReturn('Conectado');
+    when(() => mockState.temperature).thenReturn(20.0);
+    when(() => mockState.humidity).thenReturn(50.0);
+
+    final profile = UserProfile(
+      name: 'Test Restricted', 
+      ledConfigs: [
+        LedConfig(areaName: 'Sala', enabled: false), // Deshabilitado
+        LedConfig(areaName: 'Cocina', enabled: true),
+        LedConfig(areaName: 'Dormitorio', enabled: true),
+      ]
+    );
+    when(() => mockState.activeProfile).thenReturn(profile);
+    // Asegurar que ledStates coincida con las keys
+    when(() => mockState.ledStates).thenReturn({'Sala': false, 'Cocina': false, 'Dormitorio': false});
+
+    await tester.pumpWidget(createWidgetUnderTest());
+
+    // Assert: Estado visual debe indicar deshabilitado
+    expect(find.text('Deshab. (Perfil)'), findsOneWidget);
+
+    // Act: Tocar tarjeta de Sala (que está deshabilitada)
+    await tester.tap(find.text('Sala'));
+    await tester.pump(); // Dejar que el SnackBar aparezca
+
+    // Assert: Debe mostrar SnackBar de advertencia
+    expect(find.text('LED deshabilitado por el perfil.'), findsOneWidget);
+    
     addTearDown(tester.view.resetPhysicalSize);
   });
 }

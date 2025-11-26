@@ -63,7 +63,6 @@ void main() {
 
   testWidgets('Switching LED mode changes input fields', (WidgetTester tester) async {
     // TRUCO CLAVE: Aumentar el tamaño de la pantalla para ver todo sin scroll
-    // Esto evita errores de "scrollUntilVisible" con múltiples elementos
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
 
@@ -83,7 +82,6 @@ void main() {
   });
 
   testWidgets('Saving valid form calls addProfile', (WidgetTester tester) async {
-    // Aseguramos pantalla grande también aquí
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
 
@@ -100,6 +98,48 @@ void main() {
 
     // Verificar que se llamó a addProfile
     verify(() => mockState.addProfile(any())).called(1);
+
+    addTearDown(tester.view.resetPhysicalSize);
+  });
+
+  testWidgets('Toggling Sensors switch shows/hides interval input', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+
+    await tester.pumpWidget(createWidgetUnderTest());
+
+    // 1. Verificar estado inicial (Switch activado por defecto, input visible)
+    // Buscamos el input específico de intervalo
+    expect(find.text('Intervalo Lectura (ms)'), findsOneWidget);
+
+    // 2. Encontrar el Switch de sensores y desactivarlo
+    // Buscamos el Switch que está dentro de la tarjeta de Sensores
+    final sensorSwitchFinder = find.byWidgetPredicate((widget) {
+      if (widget is! Switch) return false;
+      // Verificamos si este switch tiene cerca el texto "Habilitar lectura sensores"
+      final finder = find.ancestor(
+        of: find.byWidget(widget),
+        matching: find.byWidgetPredicate((w) => w is Row && w.children.any((c) => c is Text && (c as Text).data == 'Habilitar lectura sensores'))
+      );
+      return finder.evaluate().isNotEmpty;
+    });
+
+    // Si el finder complejo falla, usamos el último switch (generalmente sensores está al final)
+    final targetSwitch = sensorSwitchFinder.evaluate().isNotEmpty 
+        ? sensorSwitchFinder 
+        : find.byType(Switch).last;
+
+    await tester.tap(targetSwitch);
+    await tester.pumpAndSettle();
+
+    // 3. Verificar que el input ahora es invisible (Opacity 0.0)
+    final opacityWidget = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.widgetWithText(TextFormField, 'Intervalo Lectura (ms)'),
+        matching: find.byType(Opacity)
+      )
+    );
+    expect(opacityWidget.opacity, 0.0);
 
     addTearDown(tester.view.resetPhysicalSize);
   });
